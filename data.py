@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import os
 
-PAD, UNK, BOS, EOS = '<pad>', '<unk>', '<bos>', '<eos>'
+PAD, UNK, BOS, EOS, SEP = '<pad>', '<unk>', '<bos>', '<eos>', '<sep>'
 LS, RS, SP = '<s>', '</s>', ' '
 BUFSIZE = 4096000
 
@@ -28,9 +28,9 @@ def batchify(pre, retri, tar, vocab):
     data = []
     tar_len = []
     for i in range(len(pre)):
-        tar_len.append(len(pre[i].strip().split())+len(retri[i].strip().split()))
+        tar_len.append(len(pre[i].strip().split()) + len(retri[i].strip().split()) + 1)
         # print(len(tar[i].strip().split()))
-        data.append((pre[i].strip()+retri[i].strip()+tar[i].strip()).split())
+        data.append(pre[i].strip().split() + [SEP] + retri[i].strip().split() + [BOS] + tar[i].strip().split() + [EOS])
 
     #print(data)
     truth, inp, msk = [], [], []
@@ -67,6 +67,7 @@ class DataLoader(object):
         self.max_len = max_len
         self.min_len = min_len
         self.filename = filename
+        self.list_idex = 0
         #self.stream = open(self.filename, encoding='utf8')
         # 前两句话 + 检索到的2句话 -> 下一句话
         self.previous = open(os.path.join(self.filename, 'previous.txt'), encoding='utf-8')
@@ -83,6 +84,7 @@ class DataLoader(object):
 
         if not pre_lines:
             self.epoch_id += 1
+            print('epoch_id: ', self.epoch_id)
             # self.stream.close()
             self.previous.close()
             self.retrieval.close()
@@ -97,9 +99,12 @@ class DataLoader(object):
             tar_lines = self.target.readlines(BUFSIZE)
 
         idx = 0
-        while idx < len(pre_lines):
-            yield batchify(pre_lines[idx:idx+self.batch_size], retri_lines[idx:idx+self.batch_size], tar_lines[idx:idx+self.batch_size], self.vocab)
-            idx += self.batch_size
+        try: 
+            while idx + self.batch_size < len(pre_lines):
+                yield batchify(pre_lines[idx:idx+self.batch_size], retri_lines[idx:idx+self.batch_size], tar_lines[idx:idx+self.batch_size], self.vocab)
+                idx += self.batch_size
+        except:
+            self.list_idex += 1
 
 class Vocab(object):
     def __init__(self, filename, min_occur_cnt, specials = None):
